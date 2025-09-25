@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stripe Payment Dashboard</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #f6d365, #fda085);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 50px 0;
+    }
+
+    .container {
+      background: #fff;
+      padding: 40px 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      width: 500px;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+      font-size: 28px;
+      color: #333;
+      letter-spacing: 0.5px;
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .input-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #555;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 15px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      outline: none;
+      transition: 0.2s;
+    }
+
+    input:focus {
+      border-color: #ff416c;
+      box-shadow: 0 0 5px rgba(255, 65, 108, 0.3);
+    }
+
+    .currency {
+      margin-top: 5px;
+      font-weight: 600;
+      font-size: 16px;
+      color: #ff416c;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 15px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #ff416c, #ff4b2b);
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .payment-status {
+      margin-top: 25px;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .payment-status table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 380px;
+    }
+
+    .payment-status th, .payment-status td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .payment-status th {
+      background-color: #ff416c;
+      color: white;
+      font-weight: 600;
+    }
+
+    .payment-status tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    .payment-status p {
+      color: #555;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        width: 90%;
+        padding: 30px 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      button {
+        font-size: 16px;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Stripe Payment Dashboard</h1>
+
+    <div class="input-group">
+      <label for="amount">Amount (USD)</label>
+      <input type="number" id="amount" placeholder="Enter amount in USD" />
+      <div class="currency" id="inr">INR: 0</div>
+    </div>
+
+    <div class="input-group">
+      <label for="userId">User ID</label>
+      <input type="text" id="userId" placeholder="Enter your User ID" />
+    </div>
+
+    <button id="payBtn">Pay Now</button>
+    <button id="statusBtn">Check Payment Status</button>
+
+    <div class="payment-status" id="paymentStatus"></div>
+  </div>
+
+  <script>
+    const amountInput = document.getElementById("amount");
+    const inrDiv = document.getElementById("inr");
+
+    // Convert USD to INR live (example static rate: 1 USD = 83 INR)
+    amountInput.addEventListener("input", () => {
+      const usd = parseFloat(amountInput.value);
+      const inr = usd ? usd * 83 : 0;
+      inrDiv.textContent = "INR: " + inr.toFixed(2);
+    });
+
+    document.getElementById("payBtn").addEventListener("click", async () => {
+      const amount = parseInt(amountInput.value) * 100;
+      const userId = document.getElementById("userId").value;
+
+      if (!amount || !userId) {
+        alert("Enter amount and user ID");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/payment/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, userId })
+        });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else alert("Failed to create payment session");
+      } catch (err) {
+        console.error(err);
+        alert("Payment failed");
+      }
+    });
+
+    document.getElementById("statusBtn").addEventListener("click", async () => {
+      const userId = document.getElementById("userId").value;
+      if (!userId) {
+        alert("Enter user ID");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/payment/status/${userId}`);
+        const payments = await res.json();
+
+        if (!payments || payments.length === 0) {
+          document.getElementById("paymentStatus").innerHTML = "<p>No payments found.</p>";
+          return;
+        }
+
+        let html = `<table>
+                      <tr>
+                        <th>ID</th>
+                        <th>Amount (USD)</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                      </tr>`;
+        payments.forEach(p => {
+          html += `<tr>
+                    <td>${p._id}</td>
+                    <td>${(p.amount / 100).toFixed(2)}</td>
+                    <td>${p.status}</td>
+                    <td>${new Date(p.createdAt).toLocaleString()}</td>
+                  </tr>`;
+        });
+        html += "</table>";
+        document.getElementById("paymentStatus").innerHTML = html;
+      } catch (err) {
+        console.error(err);
+        document.getElementById("paymentStatus").innerHTML = "<p>Failed to fetch payment status.</p>";
+      }
+    });
+  </script>
+</body>
+</html>
