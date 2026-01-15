@@ -1,3 +1,4 @@
+
 import path from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -6,27 +7,30 @@ import paymentRoute from "./routes/payment.js";
 import webhookRoute from "./routes/webhook.js";
 import connectDB from "./configs/mongodb.js";
 import dotenv from "dotenv";
-
 dotenv.config();
 
 const app = express();
-
-// Connect DB
+const PORT = process.env.PORT || 8080;
 connectDB();
 
-// CORS
+// Middleware
 app.use(cors());
 
-// ❗❗ Stripe Webhook MUST be raw body
-app.use("/api/webhook", express.raw({ type: "application/json" }));
-
-// Normal JSON for all other routes
-app.use(express.json());
+// JSON parser for all routes EXCEPT webhook
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      if (req.originalUrl.startsWith("/api/webhook")) {
+        req.rawBody = buf.toString();
+      }
+    },
+  })
+);
 
 app.use("/api/payment", paymentRoute);
 app.use("/api/webhook", webhookRoute);
 
-// Static files
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -42,6 +46,5 @@ app.get("/cancel", (req, res) => {
   res.sendFile(path.join(__dirname, "cancel.html"));
 });
 
-// ❌ REMOVE app.listen()
-// ✅ EXPORT app for Vercel
-export default app;
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

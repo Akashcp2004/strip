@@ -25,8 +25,8 @@ router.post("/create-checkout-session", async (req, res) => {
         },
       ],
       mode: "payment",
-success_url: "https://stripe.vercel.app/success",
-cancel_url: "https://stripe.vercel.app/cancel"
+     success_url: "http://localhost:8080/success",
+cancel_url: "http://localhost:8080/cancel",
 
 
     });
